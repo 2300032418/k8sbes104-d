@@ -15,7 +15,7 @@
   <groupId>com.klu</groupId>
   <artifactId>ecommerce</artifactId>
   <version>1.0.0</version>
-  <packaging>war</packaging>
+  <packaging>jar</packaging>
 
   <name>ecommerce</name>
   <description>E-commerce Backend for Deployment</description>
