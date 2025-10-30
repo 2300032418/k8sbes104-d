@@ -18,65 +18,74 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/products")
-@CrossOrigin(origins = "*") // allow frontend requests
+@CrossOrigin(origins = "*")
 public class ProductController {
 
     private final ProductRepository productRepository;
-    private static final String UPLOAD_DIR = "uploads/";
+    private static final Path UPLOAD_DIR = Paths.get("uploads");
 
     public ProductController(ProductRepository productRepository) {
         this.productRepository = productRepository;
     }
 
+    // ✅ Upload product with image
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadProductImage(
+    public ResponseEntity<?> uploadProduct(
             @RequestParam("file") MultipartFile file,
             @RequestParam("name") String name,
             @RequestParam("category") String category,
             @RequestParam("price") double price) {
 
         try {
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            Path filePath = Paths.get(UPLOAD_DIR + fileName);
+            // Ensure upload directory exists
+            Files.createDirectories(UPLOAD_DIR);
 
-            Files.createDirectories(filePath.getParent());
+            // Create unique file name
+            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            Path filePath = UPLOAD_DIR.resolve(fileName);
+
+            // Save file to disk
             Files.write(filePath, file.getBytes());
 
+            // Save product info to database
             Product product = new Product();
             product.setName(name);
             product.setCategory(category);
             product.setPrice(price);
             product.setImagePath(fileName);
-
             productRepository.save(product);
 
-            return ResponseEntity.ok("Product uploaded successfully!");
+            return ResponseEntity.ok("✅ Product uploaded successfully!");
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to upload product image: " + e.getMessage());
+                    .body("❌ Failed to upload file: " + e.getMessage());
         }
     }
 
+    // ✅ Fetch all products
     @GetMapping
-    public List<Product> getAllProducts() {
-        return productRepository.findAll();
+    public ResponseEntity<List<Product>> getAllProducts() {
+        List<Product> products = productRepository.findAll();
+        return ResponseEntity.ok(products);
     }
 
-    @GetMapping("/{category}")
-    public List<Product> getProductsByCategory(@PathVariable String category) {
-        return productRepository.findByCategory(category);
+    // ✅ Fetch products by category
+    @GetMapping("/category/{category}")
+    public ResponseEntity<List<Product>> getProductsByCategory(@PathVariable String category) {
+        List<Product> products = productRepository.findByCategory(category);
+        return ResponseEntity.ok(products);
     }
 
-    @GetMapping("/images/{fileName}")
+    // ✅ Fetch image by filename
+    @GetMapping("/images/{fileName:.+}")
     public ResponseEntity<Resource> getImage(@PathVariable String fileName) {
         try {
-            Path imagePath = Paths.get(UPLOAD_DIR).resolve(fileName).normalize();
-            Resource resource = new UrlResource(imagePath.toUri());
+            Path filePath = UPLOAD_DIR.resolve(fileName).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
                 return ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION,
-                                "inline; filename=\"" + resource.getFilename() + "\"")
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
                         .body(resource);
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
