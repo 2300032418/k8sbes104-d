@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/products")
-@CrossOrigin
+@CrossOrigin(origins = "*") // allow frontend requests
 public class ProductController {
 
     private final ProductRepository productRepository;
@@ -28,7 +28,6 @@ public class ProductController {
         this.productRepository = productRepository;
     }
 
-    // 📌 Upload product with image
     @PostMapping("/upload")
     public ResponseEntity<String> uploadProductImage(
             @RequestParam("file") MultipartFile file,
@@ -37,27 +36,24 @@ public class ProductController {
             @RequestParam("price") double price) {
 
         try {
-            // Generate unique file name
             String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
             Path filePath = Paths.get(UPLOAD_DIR + fileName);
 
-            // Ensure directory exists
             Files.createDirectories(filePath.getParent());
-
-            // Save image to local folder
             Files.write(filePath, file.getBytes());
 
-            // Save product details in DB
             Product product = new Product();
             product.setName(name);
             product.setCategory(category);
             product.setPrice(price);
-            product.setImagePath(fileName); // Store only file name in DB
+            product.setImagePath(fileName);
 
             productRepository.save(product);
+
             return ResponseEntity.ok("Product uploaded successfully!");
         } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload product image");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to upload product image: " + e.getMessage());
         }
     }
 
@@ -66,22 +62,21 @@ public class ProductController {
         return productRepository.findAll();
     }
 
-    // Fetch products by category
     @GetMapping("/{category}")
     public List<Product> getProductsByCategory(@PathVariable String category) {
         return productRepository.findByCategory(category);
     }
 
-    // 📌 Serve image files
     @GetMapping("/images/{fileName}")
     public ResponseEntity<Resource> getImage(@PathVariable String fileName) {
         try {
             Path imagePath = Paths.get(UPLOAD_DIR).resolve(fileName).normalize();
             Resource resource = new UrlResource(imagePath.toUri());
 
-            if (resource.exists() || resource.isReadable()) {
+            if (resource.exists() && resource.isReadable()) {
                 return ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                "inline; filename=\"" + resource.getFilename() + "\"")
                         .body(resource);
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
